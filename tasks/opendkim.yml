@@ -1,4 +1,17 @@
 ---
+#- shell: "echo result-{{item}}"
+#  register: "r"
+#  with_items: "{{dkim_domains}}"
+#
+#- debug: var=r
+#
+#- debug: msg="item.item={{item.item}}, item.stdout={{item.stdout}}, item.changed={{item.changed}}"
+#  with_items: "{{r.results}}"
+#
+#- debug: msg="Gets printed only if this item changed - {{item}}"
+#  when: "{{item.changed == true}}"
+#  with_items: "{{r.results}}"
+
 - name: opendkim packages are installed
   apt: pkg={{ item }} state=installed
   with_items:
@@ -13,6 +26,11 @@
 - name: opendkim directory present
   file: path=/etc/opendkim state=directory
   file: path=/etc/opendkim/keys state=directory
+
+- name: opendkim domain directory keys present
+  file: path=/etc/opendkim/keys/{{item}} state=directory
+  with_items: "{{dkim_domains}}"
+
 
 - name: opendkim TrustedHosts present
   copy: src=TrustedHosts dest=/etc/opendkim/TrustedHosts
@@ -35,17 +53,22 @@
    - restart opendkim
 
 - name: ensure signing key is present
-  stat: path=/etc/opendkim/keys/{{ dkim_selector }}.private get_md5=no
+  stat: path=/etc/opendkim/keys/{{ item }}/{{ dkim_selector }}.private get_md5=no
+  with_items: "{{dkim_domains}}"
   register: dkim_key
+  tags: genkey
 
 - name: generate signing key
-  shell: opendkim-genkey -s {{ dkim_selector }} -d {{ dkim_domains[0] }} -D /etc/opendkim/keys
-  when: not dkim_key.stat.exists
+  shell: opendkim-genkey -s {{ dkim_selector }} -d {{ item.item }} -D /etc/opendkim/keys/{{item.item}}
+  when: 'not {{item.stat.exists}}'
+  with_items: "{{dkim_key.results}}"
   notify:
    - restart opendkim
+  tags: genkey
 
 - name: ensure signing key owner
-  file: path=/etc/opendkim/keys/{{ dkim_selector }}.private owner=opendkim group=opendkim
+  file: path=/etc/opendkim/keys/{{item}}/{{ dkim_selector }}.private owner=opendkim group=opendkim
+  with_items: "{{dkim_domains}}"
 
 - name: opendkim is running
   service: name=opendkim state=running enabled=yes
