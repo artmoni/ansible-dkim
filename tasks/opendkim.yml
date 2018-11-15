@@ -31,9 +31,8 @@
   file: path=/etc/opendkim/keys/{{item}} state=directory
   with_items: "{{dkim_domains}}"
 
-
 - name: opendkim TrustedHosts present
-  copy: src=TrustedHosts dest=/etc/opendkim/TrustedHosts
+  template: src=TrustedHosts.j2 dest=/etc/opendkim/TrustedHosts
   notify:
    - restart opendkim
 
